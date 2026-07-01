@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Node-X Folder Share</title>
+    <!-- Plus Jakarta Sans Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="/style.css">
+    <!-- Lucide Icons (CDN) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <!-- Premium Mesh Glow Background -->
+    <div class="glow-bg">
+        <div class="glow-orb blue-orb"></div>
+        <div class="glow-orb red-orb"></div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <img src="/logo.png" alt="Node-X Logo" class="brand-logo">
+                <div class="brand-info">
+                    <span class="brand-title">Node-X</span>
+                    <span class="brand-subtitle">Folder Share</span>
+                </div>
+            </div>
+            
+            <div class="search-area">
+                <i data-lucide="search" class="search-icon"></i>
+                <input type="text" id="search-input" placeholder="Search files and folders..." autocomplete="off">
+                <button id="clear-search-btn" class="clear-btn" style="display: none;">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <div class="action-area">
+                <button id="new-folder-btn" class="btn btn-secondary">
+                    <i data-lucide="folder-plus"></i>
+                    <span>New Folder</span>
+                </button>
+                <button id="upload-btn" class="btn btn-primary">
+                    <i data-lucide="upload"></i>
+                    <span>Upload</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic File Explorer Section -->
+        <main class="explorer-card">
+            <!-- Explorer Toolbar -->
+            <div class="explorer-toolbar">
+                <!-- Breadcrumbs -->
+                <div id="breadcrumbs" class="breadcrumbs-container">
+                    <!-- Dynamic Breadcrumbs inject here -->
+                </div>
+
+                <!-- View & Folder Action Toggles -->
+                <div class="toolbar-controls">
+                    <button id="download-zip-btn" class="btn btn-icon" title="Download folder as ZIP">
+                        <i data-lucide="download-cloud"></i>
+                        <span>ZIP</span>
+                    </button>
+                    <div class="divider"></div>
+                    <button id="view-grid-btn" class="btn btn-icon active" title="Grid View">
+                        <i data-lucide="layout-grid"></i>
+                    </button>
+                    <button id="view-list-btn" class="btn btn-icon" title="List View">
+                        <i data-lucide="list"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Upload Area & Drag-and-Drop Dropzone -->
+            <div id="dropzone" class="upload-dropzone">
+                <div class="dropzone-content">
+                    <i data-lucide="cloud-upload" class="upload-arrow-icon"></i>
+                    <p class="dropzone-text">Drag & drop files here or click to upload</p>
+                    <span class="dropzone-subtext">Upload files directly to the current folder</span>
+                </div>
+                <input type="file" id="file-input" multiple style="display: none;">
+            </div>
+
+            <!-- Upload Progress Container -->
+            <div id="upload-progress-container" class="upload-progress-container" style="display: none;">
+                <div class="progress-info">
+                    <span id="upload-status-text">Uploading files...</span>
+                    <span id="upload-percentage">0%</span>
+                </div>
+                <div class="progress-bar-wrapper">
+                    <div id="upload-progress-bar" class="progress-bar"></div>
+                </div>
+            </div>
+
+            <!-- File List Container -->
+            <div class="explorer-content-wrapper">
+                <!-- Watermark Background -->
+                <div class="watermark-overlay">
+                    <img src="/logo.png" alt="Node-X Watermark Logo" class="watermark-logo">
+                    <span class="watermark-text">Node-X</span>
+                </div>
+
+                <!-- Actual Items List -->
+                <div id="explorer-items" class="explorer-items grid-view">
+                    <!-- Dynamic files & folders list -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="empty-state" style="display: none;">
+                    <i data-lucide="folder-open" class="empty-icon"></i>
+                    <h3>This folder is empty</h3>
+                    <p>Drag and drop files here to upload your first files.</p>
+                </div>
+            </div>
+
+            <!-- Explorer Footer Status -->
+            <footer class="explorer-footer">
+                <div class="footer-stats">
+                    <span id="folders-count">0 Folders</span>
+                    <span class="dot-separator">•</span>
+                    <span id="files-count">0 Files</span>
+                    <span class="dot-separator">•</span>
+                    <span id="total-size">0 KB</span>
+                </div>
+                <div class="watermark-footer-text">
+                    Node-X Secure File Indexer
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Create Folder Modal -->
+    <div id="folder-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Create New Folder</h3>
+                <button class="modal-close-btn close-modal-btn">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <label for="folder-name-input">Folder Name</label>
+                <input type="text" id="folder-name-input" placeholder="e.g. Invoices, Project Photos" autocomplete="off">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary close-modal-btn">Cancel</button>
+                <button id="confirm-folder-btn" class="btn btn-primary">Create Folder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Preview Modal -->
+    <div id="preview-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card preview-card">
+            <div class="modal-header">
+                <div class="preview-title-wrapper">
+                    <i id="preview-file-icon" data-lucide="file"></i>
+                    <h3 id="preview-file-name" class="truncate">File Preview</h3>
+                </div>
+                <div class="preview-actions">
+                    <button id="preview-download-btn" class="btn btn-icon" title="Download file">
+                        <i data-lucide="download"></i>
+                    </button>
+                    <button class="modal-close-btn close-preview-btn">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body preview-body">
+                <!-- Dynamic Preview Content -->
+                <div id="preview-content-loader" class="preview-loader">
+                    <div class="spinner"></div>
+                </div>
+                
+                <div id="preview-image-container" class="preview-media-container" style="display: none;">
+                    <img id="preview-img" src="" alt="Image Preview">
+                </div>
+
+                <div id="preview-video-container" class="preview-media-container" style="display: none;">
+                    <video id="preview-video" controls src=""></video>
+                </div>
+
+                <div id="preview-audio-container" class="preview-media-container" style="display: none;">
+                    <audio id="preview-audio" controls src=""></audio>
+                </div>
+
+                <div id="preview-text-container" class="preview-text-container" style="display: none;">
+                    <pre><code id="preview-text-content"></code></pre>
+                </div>
+
+                <div id="preview-iframe-container" class="preview-iframe-container" style="display: none;">
+                    <iframe id="preview-iframe" src=""></iframe>
+                </div>
+
+                <div id="preview-unsupported" class="preview-unsupported" style="display: none;">
+                    <i data-lucide="file-warning" class="unsupported-icon"></i>
+                    <p>Preview not available for this file type.</p>
+                    <span id="preview-mime-type">application/octet-stream</span>
+                    <button id="preview-fallback-download-btn" class="btn btn-primary" style="margin-top: 1.5rem;">
+                        <i data-lucide="download"></i>
+                        <span>Download File</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Frontend JS Script -->
+    <script src="/app.js"></script>
+</body>
+</html>
