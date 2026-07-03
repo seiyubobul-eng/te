@@ -1,0 +1,117 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  username  String
+  sessions  Session[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Folder {
+  id             String    @id @default(uuid())
+  name           String
+  parentFolderId String?
+  parentFolder   Folder?   @relation("SubFolders", fields: [parentFolderId], references: [id], onDelete: Cascade)
+  subFolders     Folder[]  @relation("SubFolders")
+  files          File[]
+  shares         Share[]
+  trashItems     Trash[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model File {
+  id           String        @id @default(uuid())
+  originalName String
+  uuidName     String        @unique
+  mimeType     String
+  size         BigInt
+  folderId     String?
+  folder       Folder?       @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  shares       Share[]
+  downloadLogs DownloadLog[]
+  trashItems   Trash[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Share {
+  id               String    @id @default(uuid())
+  hash             String    @unique
+  passwordHash     String?
+  expiresAt        DateTime?
+  maxDownloads     Int?
+  currentDownloads Int       @default(0)
+  readOnly         Boolean   @default(false)
+  downloadOnly     Boolean   @default(false)
+  disableDownload  Boolean   @default(false)
+  disablePreview   Boolean   @default(false)
+  isPublic         Boolean   @default(false)
+  
+  folderId         String?
+  folder           Folder?   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  fileId           String?
+  file             File?     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  event     String
+  details   String?
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+}
+
+model Setting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  type        String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model Trash {
+  id           String    @id @default(uuid())
+  itemType     String    // "FILE" or "FOLDER"
+  itemId       String
+  name         String
+  originalPath String?
+  fileId       String?
+  file         File?     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  folderId     String?
+  folder       Folder?   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  deletedAt    DateTime  @default(now())
+}
+
+model DownloadLog {
+  id        String   @id @default(uuid())
+  fileId    String
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+}

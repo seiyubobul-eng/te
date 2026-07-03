@@ -1,18 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Node-X Folder Share</title>
-    <!-- Plus Jakarta Sans Font -->
+    <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <!-- CSS Stylesheet -->
     <link rel="stylesheet" href="/style.css">
     <!-- Lucide Icons (CDN) -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
+
 <body>
     <!-- Premium Mesh Glow Background -->
     <div class="glow-bg">
@@ -31,13 +34,11 @@
                     <span class="brand-subtitle">Folder Share</span>
                 </div>
             </div>
-            
-            <div class="search-area">
-                <i data-lucide="search" class="search-icon"></i>
-                <input type="text" id="search-input" placeholder="Search files and folders..." autocomplete="off">
-                <button id="clear-search-btn" class="clear-btn" style="display: none;">
-                    <i data-lucide="x"></i>
-                </button>
+
+            <!-- Hidden elements to preserve app.js functionality -->
+            <div style="display: none;">
+                <input type="text" id="search-input" placeholder="Search files and folders...">
+                <button id="clear-search-btn"></button>
             </div>
 
             <div class="action-area">
@@ -129,7 +130,7 @@
                     <span id="total-size">0 KB</span>
                 </div>
                 <div class="watermark-footer-text">
-                    Node-X Secure File Indexer
+                    Credit by tiaarah
                 </div>
             </footer>
         </main>
@@ -146,7 +147,8 @@
             </div>
             <div class="modal-body">
                 <label for="folder-name-input">Folder Name</label>
-                <input type="text" id="folder-name-input" placeholder="e.g. Invoices, Project Photos" autocomplete="off">
+                <input type="text" id="folder-name-input" placeholder="e.g. Invoices, Project Photos"
+                    autocomplete="off">
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary close-modal-btn">Cancel</button>
@@ -177,7 +179,7 @@
                 <div id="preview-content-loader" class="preview-loader">
                     <div class="spinner"></div>
                 </div>
-                
+
                 <div id="preview-image-container" class="preview-media-container" style="display: none;">
                     <img id="preview-img" src="" alt="Image Preview">
                 </div>
@@ -217,4 +219,5 @@
     <!-- Frontend JS Script -->
     <script src="/app.js"></script>
 </body>
+
 </html>

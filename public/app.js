@@ -26,24 +26,24 @@ const elements = {
     uploadBtn: document.getElementById('upload-btn'),
     dropzone: document.getElementById('dropzone'),
     fileInput: document.getElementById('file-input'),
-    
+
     // Progress Bar
     uploadProgressContainer: document.getElementById('upload-progress-container'),
     uploadStatusText: document.getElementById('upload-status-text'),
     uploadProgressBar: document.getElementById('upload-progress-bar'),
     uploadPercentage: document.getElementById('upload-percentage'),
-    
+
     // Stats
     foldersCount: document.getElementById('folders-count'),
     filesCount: document.getElementById('files-count'),
     totalSize: document.getElementById('total-size'),
-    
+
     // Folder Modal
     folderModal: document.getElementById('folder-modal'),
     folderNameInput: document.getElementById('folder-name-input'),
     confirmFolderBtn: document.getElementById('confirm-folder-btn'),
     closeModalBtns: document.querySelectorAll('.close-modal-btn'),
-    
+
     // Preview Modal
     previewModal: document.getElementById('preview-modal'),
     previewFileName: document.getElementById('preview-file-name'),
@@ -51,7 +51,7 @@ const elements = {
     previewDownloadBtn: document.getElementById('preview-download-btn'),
     previewFallbackDownloadBtn: document.getElementById('preview-fallback-download-btn'),
     previewContentLoader: document.getElementById('preview-content-loader'),
-    
+
     // Preview Media Elements
     previewImageContainer: document.getElementById('preview-image-container'),
     previewImg: document.getElementById('preview-img'),
@@ -66,7 +66,7 @@ const elements = {
     previewUnsupported: document.getElementById('preview-unsupported'),
     previewMimeType: document.getElementById('preview-mime-type'),
     closePreviewBtns: document.querySelectorAll('.close-preview-btn'),
-    
+
     // Toast Container
     toastContainer: document.getElementById('toast-container')
 };
@@ -153,7 +153,7 @@ function initEventListeners() {
 
     // Dropzone Drag & Drop
     elements.dropzone.addEventListener('click', () => elements.fileInput.click());
-    
+
     ['dragenter', 'dragover'].forEach(eventName => {
         elements.dropzone.addEventListener(eventName, (e) => {
             e.preventDefault();
@@ -192,24 +192,24 @@ function initEventListeners() {
 async function loadFolder(path) {
     try {
         state.currentPath = path;
-        
+
         // Fetch files API
         const response = await fetch(`/api/files?path=${encodeURIComponent(path)}`);
         if (!response.ok) {
             throw new Error(`Failed to load directory. Status: ${response.status}`);
         }
-        
+
         const data = await response.json();
-        
+
         // Update states
         state.items = data.items;
         state.breadcrumbs = data.breadcrumbs;
-        
+
         // Render view
         renderBreadcrumbs();
         renderItems();
         updateStats();
-        
+
     } catch (err) {
         showToast(err.message, 'error');
         console.error(err);
@@ -226,7 +226,7 @@ async function createFolder() {
 
     try {
         elements.folderModal.style.display = 'none';
-        
+
         const response = await fetch('/api/create-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -293,7 +293,7 @@ function uploadFiles(files) {
             try {
                 const response = JSON.parse(xhr.responseText);
                 errorMsg = response.error || errorMsg;
-            } catch (err) {}
+            } catch (err) { }
             showToast(errorMsg, 'error');
         }
     });
@@ -315,7 +315,7 @@ function uploadFiles(files) {
 function setViewType(type) {
     state.viewType = type;
     localStorage.setItem('node-x-view-type', type);
-    
+
     if (type === 'grid') {
         elements.viewGridBtn.classList.add('active');
         elements.viewListBtn.classList.remove('active');
@@ -323,14 +323,14 @@ function setViewType(type) {
         elements.viewGridBtn.classList.remove('active');
         elements.viewListBtn.classList.add('active');
     }
-    
+
     renderItems();
 }
 
 // Render Breadcrumb Navigation links
 function renderBreadcrumbs() {
     elements.breadcrumbs.innerHTML = '';
-    
+
     state.breadcrumbs.forEach((crumb, idx) => {
         // Add separator if not first item
         if (idx > 0) {
@@ -342,7 +342,7 @@ function renderBreadcrumbs() {
 
         const item = document.createElement('div');
         item.className = 'breadcrumb-item';
-        
+
         // Custom branding icon for "Home"
         if (idx === 0) {
             item.innerHTML = `<i data-lucide="home" style="width:16px;height:16px;margin-right:6px;"></i> ${crumb.name}`;
@@ -357,7 +357,7 @@ function renderBreadcrumbs() {
 
         elements.breadcrumbs.appendChild(item);
     });
-    
+
     lucide.createIcons();
 }
 
@@ -404,7 +404,7 @@ function renderItems() {
     filteredItems.forEach(item => {
         const card = document.createElement('div');
         card.className = `item-card ${item.isDirectory ? 'folder-item' : 'file-item'} ${getFileCategory(item)}`;
-        
+
         // Setup direct actions mapping
         const downloadUrl = `/api/download?path=${encodeURIComponent(item.path)}`;
         const viewUrl = `/api/view?path=${encodeURIComponent(item.path)}`;
@@ -607,7 +607,7 @@ async function openPreview(item) {
             const res = await fetch(viewUrl);
             if (!res.ok) throw new Error('Could not fetch text content');
             const txt = await res.text();
-            
+
             elements.previewTextContent.textContent = txt;
             elements.previewContentLoader.style.display = 'none';
             elements.previewTextContainer.style.display = 'block';
@@ -632,7 +632,7 @@ function resetPreviewModal() {
     elements.previewVideo.src = '';
     elements.previewAudio.pause();
     elements.previewAudio.src = '';
-    
+
     // Hide containers
     elements.previewImageContainer.style.display = 'none';
     elements.previewVideoContainer.style.display = 'none';
@@ -640,7 +640,7 @@ function resetPreviewModal() {
     elements.previewTextContainer.style.display = 'none';
     elements.previewIframeContainer.style.display = 'none';
     elements.previewUnsupported.style.display = 'none';
-    
+
     // Empty sources
     elements.previewImg.src = '';
     elements.previewIframe.src = '';
@@ -723,7 +723,7 @@ function formatBytes(bytes, decimals = 2) {
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
+
     const iconName = type === 'success' ? 'check-circle' : 'alert-circle';
     toast.innerHTML = `
         <i data-lucide="${iconName}" style="width:20px;height:20px;flex-shrink:0;"></i>

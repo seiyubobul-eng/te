@@ -71,7 +71,7 @@ app.get('/api/files', (req, res) => {
             try {
                 const entryStat = fs.statSync(entryPath);
                 const isDirectory = entryStat.isDirectory();
-                
+
                 return {
                     name,
                     path: relativeEntryPath,
@@ -98,7 +98,7 @@ app.get('/api/files', (req, res) => {
         const breadcrumbs = [];
         let currentLink = '';
         const parts = relativePath.split('/').filter(Boolean);
-        
+
         breadcrumbs.push({ name: 'Home', path: '' });
         parts.forEach(part => {
             currentLink = currentLink ? `${currentLink}/${part}` : part;
@@ -159,7 +159,7 @@ app.get('/api/view', (req, res) => {
 
         const mimeType = mime.lookup(targetPath) || 'application/octet-stream';
         res.setHeader('Content-Type', mimeType);
-        
+
         // Ensure proper encoding for text and code files
         if (mimeType.startsWith('text/') || mimeType === 'application/json' || mimeType === 'application/javascript') {
             res.setHeader('Content-Type', `${mimeType}; charset=utf-8`);
@@ -222,12 +222,12 @@ app.post('/api/create-folder', (req, res) => {
         if (!folderName) {
             return res.status(400).json({ error: 'Folder name is required' });
         }
-        
+
         // Clean folder name to prevent folder injection/traversal
         const safeFolderName = path.basename(folderName);
         const parentDir = getSafePath(parentPath || '');
         const newFolderDir = path.join(parentDir, safeFolderName);
-        
+
         if (fs.existsSync(newFolderDir)) {
             return res.status(400).json({ error: 'Folder or file already exists' });
         }
