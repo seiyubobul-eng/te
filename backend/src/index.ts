@@ -1,7 +1,7 @@
-import * as express from 'express';
-import * as cors from 'cors';
+import express from 'express';
+import cors from 'cors';
 import helmet from 'helmet';
-import * as cookieParser from 'cookie-parser';
+import cookieParser from 'cookie-parser';
 import { rateLimit } from 'express-rate-limit';
 import * as dotenv from 'dotenv';
 import * as bcrypt from 'bcryptjs';
@@ -66,7 +66,8 @@ async function seedDatabase() {
         data: {
           email,
           password: hashedPassword,
-          username: 'Administrator'
+          username: 'Administrator',
+          role: 'ADMIN'
         }
       });
       console.log(`[SEED] Default Administrator created with email: ${email}`);

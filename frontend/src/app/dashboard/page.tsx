@@ -152,8 +152,8 @@ export default function Dashboard() {
 
   // --- TAB 1: FILES EXPLORER SUB-LOGIC ---
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [folders, setFolders] = useState<FolderItem[]>([]);
-  const [files, setFiles] = useState<FileItem[]>([]);
+  const [folders, setFolders] = useState<any[]>([]);
+  const [files, setFiles] = useState<any[]>([]);
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -164,9 +164,14 @@ export default function Dashboard() {
   // Modals state
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderName, setFolderName] = useState('');
+  const [folderVisibility, setFolderVisibility] = useState<'PUBLIC' | 'PROTECTED' | 'PRIVATE'>('PUBLIC');
+  const [folderPassword, setFolderPassword] = useState('');
+  const [folderAllowUpload, setFolderAllowUpload] = useState(false);
+
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [renameName, setRenameName] = useState('');
   const [renameItem, setRenameItem] = useState<any>(null);
+  
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareItem, setShareItem] = useState<any>(null);
   const [sharePassword, setSharePassword] = useState('');
@@ -176,17 +181,38 @@ export default function Dashboard() {
   const [shareDownloadOnly, setShareDownloadOnly] = useState(false);
   const [shareGeneratedLink, setShareGeneratedLink] = useState('');
 
+  // Password Unlock Gate States
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlockingFolderId, setUnlockingFolderId] = useState<string | null>(null);
+  const [currentFolder, setCurrentFolder] = useState<any>(null);
+
+  // Permissions Settings Modal States
+  const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
+  const [permissionsItem, setPermissionsItem] = useState<any>(null);
+  const [editVisibility, setEditVisibility] = useState<'PUBLIC' | 'PROTECTED' | 'PRIVATE'>('PUBLIC');
+  const [editPassword, setEditPassword] = useState('');
+  const [editAllowUpload, setEditAllowUpload] = useState(false);
+
   // Fetch items inside currentFolderId
   const fetchExplorerItems = async () => {
     try {
+      setPasswordRequired(false);
+      setUnlockingFolderId(null);
       const data = await apiFetch(`/api/explorer/items?folderId=${currentFolderId || ''}`);
       if (data) {
         setFolders(data.folders);
         setFiles(data.files);
         setBreadcrumbs(data.breadcrumbs);
+        setCurrentFolder(data.currentFolder);
       }
     } catch (err: any) {
-      showToast(err.message, 'error');
+      if (err.message === 'Password verification required' || err.message?.includes('Password')) {
+        setPasswordRequired(true);
+        setUnlockingFolderId(currentFolderId);
+      } else {
+        showToast(err.message, 'error');
+      }
     }
   };
 
@@ -196,21 +222,68 @@ export default function Dashboard() {
     }
   }, [authenticated, currentFolderId, activeTab]);
 
+  // Unlock Protected Folder Submit handler
+  const handleUnlockFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!unlockingFolderId) return;
+    try {
+      const data = await apiFetch(`/api/folders/${unlockingFolderId}/unlock`, {
+        method: 'POST',
+        body: JSON.stringify({ password: unlockPassword })
+      });
+      if (data && data.success) {
+        showToast('Folder unlocked successfully');
+        setUnlockPassword('');
+        setPasswordRequired(false);
+        fetchExplorerItems();
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Edit Permissions Submit handler
+  const handleUpdatePermissions = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!permissionsItem) return;
+    try {
+      await apiFetch(`/api/folders/${permissionsItem.id}/permissions`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          visibility: editVisibility,
+          password: editVisibility === 'PROTECTED' ? editPassword : '',
+          allowUpload: editAllowUpload
+        })
+      });
+      showToast('Permissions updated successfully');
+      setPermissionsModalOpen(false);
+      fetchExplorerItems();
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
   // New folder creation
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!folderName.trim()) return;
 
     try {
-      await apiFetch('/api/folder', {
+      await apiFetch('/api/folders', {
         method: 'POST',
         body: JSON.stringify({
           name: folderName.trim(),
-          parentFolderId: currentFolderId
+          parentFolderId: currentFolderId,
+          visibility: folderVisibility,
+          password: folderVisibility === 'PROTECTED' ? folderPassword : '',
+          allowUpload: folderAllowUpload
         })
       });
       showToast('Folder created');
       setFolderName('');
+      setFolderVisibility('PUBLIC');
+      setFolderPassword('');
+      setFolderAllowUpload(false);
       setFolderModalOpen(false);
       fetchExplorerItems();
     } catch (err: any) {
@@ -528,6 +601,8 @@ export default function Dashboard() {
     );
   }
 
+  const canUpload = user?.role === 'ADMIN' || (currentFolder && currentFolder.allowUpload);
+
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col md:flex-row relative overflow-hidden">
       {/* Background Orbs */}
@@ -678,15 +753,19 @@ export default function Dashboard() {
 
                   <div className="w-[1px] h-6 bg-white/5"></div>
 
-                  <button onClick={() => setFolderModalOpen(true)} className="flex items-center gap-2 py-2 px-3.5 rounded-xl border border-white/5 hover:border-blue-500/30 hover:bg-blue-600/10 text-blue-400 text-xs font-semibold transition-all">
-                    <FolderPlus className="w-4 h-4" />
-                    <span>New Folder</span>
-                  </button>
+                  {user?.role === 'ADMIN' && (
+                    <button onClick={() => setFolderModalOpen(true)} className="flex items-center gap-2 py-2 px-3.5 rounded-xl border border-white/5 hover:border-blue-500/30 hover:bg-blue-600/10 text-blue-400 text-xs font-semibold transition-all">
+                      <FolderPlus className="w-4 h-4" />
+                      <span>New Folder</span>
+                    </button>
+                  )}
 
-                  <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 py-2 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-500/15 transition-all">
-                    <Upload className="w-4 h-4" />
-                    <span>Upload Files</span>
-                  </button>
+                  {(user?.role === 'ADMIN' || (currentFolder && currentFolder.allowUpload)) && (
+                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 py-2 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-500/15 transition-all">
+                      <Upload className="w-4 h-4" />
+                      <span>Upload Files</span>
+                    </button>
+                  )}
                   <input
                     type="file"
                     multiple
@@ -741,21 +820,57 @@ export default function Dashboard() {
 
               {/* Drag and Drop Zone Area */}
               <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`flex-1 border-2 border-dashed rounded-2xl transition-all duration-200 flex flex-col p-6 min-h-[300px] ${
-                  isDragActive
-                    ? 'border-blue-500 bg-blue-500/5'
-                    : 'border-white/10 hover:border-white/20 bg-gray-900/10'
+                onDragOver={canUpload ? handleDragOver : undefined}
+                onDragLeave={canUpload ? handleDragLeave : undefined}
+                onDrop={canUpload ? handleDrop : undefined}
+                className={`flex-1 rounded-2xl transition-all duration-200 flex flex-col p-6 min-h-[300px] ${
+                  canUpload
+                    ? (isDragActive ? 'border-2 border-dashed border-blue-500 bg-blue-500/5' : 'border-2 border-dashed border-white/10 hover:border-white/20 bg-gray-900/10')
+                    : 'border border-white/5 bg-gray-900/10'
                 }`}
               >
-                {/* Empty State */}
-                {folders.length === 0 && files.length === 0 ? (
+                {passwordRequired ? (
+                  <div className="flex-1 flex flex-col justify-center items-center py-12 px-4">
+                    <motion.div 
+                      initial={{ scale: 0.95, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="w-full max-w-sm bg-gray-950/80 backdrop-blur-xl border border-blue-500/20 p-8 rounded-2xl shadow-2xl flex flex-col items-center text-center gap-5"
+                    >
+                      <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                        <Lock className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <h3 className="font-bold text-white text-base">This folder is password protected</h3>
+                        <p className="text-xs text-gray-500">Please enter password to gain access to files.</p>
+                      </div>
+                      <form onSubmit={handleUnlockFolder} className="w-full flex flex-col gap-4">
+                        <input
+                          type="password"
+                          required
+                          value={unlockPassword}
+                          onChange={(e) => setUnlockPassword(e.target.value)}
+                          placeholder="Enter Password"
+                          className="w-full bg-[#111827] border border-white/5 rounded-xl py-3 px-4 text-sm text-white placeholder-gray-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                        />
+                        <button
+                          type="submit"
+                          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300 text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                        >
+                          <KeyRound className="w-4 h-4" />
+                          <span>Unlock Folder</span>
+                        </button>
+                      </form>
+                    </motion.div>
+                  </div>
+                ) : folders.length === 0 && files.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 text-gray-500">
-                    <Upload className="w-12 h-12 text-gray-700 animate-bounce" />
+                    <Folder className="w-12 h-12 text-gray-700" />
                     <h3 className="text-white font-semibold">This folder is empty</h3>
-                    <p className="text-xs max-w-xs">Drag and drop files here to upload, or use the toolbar buttons.</p>
+                    {canUpload ? (
+                      <p className="text-xs max-w-xs">Drag and drop files here to upload, or use the toolbar buttons.</p>
+                    ) : (
+                      <p className="text-xs max-w-xs">You do not have permissions to upload files here.</p>
+                    )}
                   </div>
                 ) : (
                   /* Explorer Grid / List View Mode */
@@ -789,7 +904,18 @@ export default function Dashboard() {
                               <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-105 transition-transform">
                                 <Folder className="w-5 h-5 fill-blue-400/20" />
                               </div>
-                              <span className="text-xs font-semibold text-white truncate max-w-full">{folder.name}</span>
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <span className="text-xs font-semibold text-white truncate max-w-full flex items-center gap-1">
+                                  {folder.visibility === 'PROTECTED' && <Lock className="w-3 h-3 text-amber-400 flex-shrink-0" />}
+                                  {folder.visibility === 'PRIVATE' && <ShieldAlert className="w-3 h-3 text-purple-400 flex-shrink-0" />}
+                                  <span>{folder.name}</span>
+                                </span>
+                                <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                                  {folder.visibility === 'PROTECTED' && <span>🔒 Protected</span>}
+                                  {folder.visibility === 'PRIVATE' && <span>👑 Admin Only</span>}
+                                  {folder.visibility === 'PUBLIC' && <span>🌐 Public</span>}
+                                </span>
+                              </div>
                               {/* Quick actions for hover state */}
                               <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button onClick={(e) => { e.stopPropagation(); openShareModal(folder, true); }} className="p-1 text-gray-400 hover:text-white rounded hover:bg-white/10">
@@ -807,7 +933,14 @@ export default function Dashboard() {
                             <>
                               <div className="col-span-6 flex items-center gap-3">
                                 <Folder className="w-4 h-4 text-blue-400" />
-                                <span className="text-xs font-medium text-white truncate">{folder.name}</span>
+                                <span className="text-xs font-medium text-white truncate flex items-center gap-1.5">
+                                  {folder.visibility === 'PROTECTED' && <Lock className="w-3.5 h-3.5 text-amber-400" />}
+                                  {folder.visibility === 'PRIVATE' && <ShieldAlert className="w-3.5 h-3.5 text-purple-400" />}
+                                  <span>{folder.name}</span>
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-gray-400 ml-2">
+                                    {folder.visibility}
+                                  </span>
+                                </span>
                               </div>
                               <div className="col-span-3 text-xs text-gray-500">{new Date(folder.createdAt).toLocaleDateString()}</div>
                               <div className="col-span-2 text-xs text-gray-500">--</div>
@@ -1083,8 +1216,109 @@ export default function Dashboard() {
               />
             </div>
 
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Visibility</label>
+              <select
+                value={folderVisibility}
+                onChange={(e) => setFolderVisibility(e.target.value as any)}
+                className="w-full bg-gray-950 border border-white/5 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-blue-500 transition-all"
+              >
+                <option value="PUBLIC">🌐 Public</option>
+                <option value="PROTECTED">🔒 Protected (Password)</option>
+                <option value="PRIVATE">👑 Private (Admin Only)</option>
+              </select>
+            </div>
+
+            {folderVisibility === 'PROTECTED' && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Folder Password</label>
+                <input
+                  type="password"
+                  required
+                  value={folderPassword}
+                  onChange={(e) => setFolderPassword(e.target.value)}
+                  placeholder="Set password..."
+                  className="w-full bg-gray-950 border border-white/5 rounded-xl py-2 px-3 text-sm text-white outline-none focus:border-blue-500 transition-all"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center gap-2.5 mt-1.5">
+              <input
+                type="checkbox"
+                id="allowUpload"
+                checked={folderAllowUpload}
+                onChange={(e) => setFolderAllowUpload(e.target.checked)}
+                className="rounded border-white/10 bg-gray-950 text-blue-600 focus:ring-0"
+              />
+              <label htmlFor="allowUpload" className="text-xs text-gray-400 select-none">Allow user uploads inside this folder</label>
+            </div>
+
             <button type="submit" className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/10">
               Create Folder
+            </button>
+          </motion.form>
+        </div>
+      )}
+
+      {/* 5. Folder Permissions Config Modal */}
+      {permissionsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <motion.form 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            onSubmit={handleUpdatePermissions}
+            className="w-full max-w-sm glass-premium p-6 rounded-2xl shadow-2xl flex flex-col gap-4"
+          >
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                <SettingsIcon className="w-4 h-4 text-blue-400" />
+                <span>Folder Permissions</span>
+              </span>
+              <button type="button" onClick={() => setPermissionsModalOpen(false)} className="text-gray-400 hover:text-white p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Visibility</label>
+              <select
+                value={editVisibility}
+                onChange={(e) => setEditVisibility(e.target.value as any)}
+                className="w-full bg-gray-950 border border-white/5 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-blue-500 transition-all"
+              >
+                <option value="PUBLIC">🌐 Public</option>
+                <option value="PROTECTED">🔒 Protected (Password)</option>
+                <option value="PRIVATE">👑 Private (Admin Only)</option>
+              </select>
+            </div>
+
+            {editVisibility === 'PROTECTED' && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">New Password (leave blank to keep current)</label>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Change password..."
+                  className="w-full bg-gray-950 border border-white/5 rounded-xl py-2 px-3 text-sm text-white outline-none focus:border-blue-500 transition-all"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center gap-2.5 mt-1.5">
+              <input
+                type="checkbox"
+                id="editAllowUpload"
+                checked={editAllowUpload}
+                onChange={(e) => setEditAllowUpload(e.target.checked)}
+                className="rounded border-white/10 bg-gray-950 text-blue-600 focus:ring-0"
+              />
+              <label htmlFor="editAllowUpload" className="text-xs text-gray-400 select-none">Allow user uploads inside this folder</label>
+            </div>
+
+            <button type="submit" className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/10">
+              Apply Permissions
             </button>
           </motion.form>
         </div>
@@ -1274,6 +1508,21 @@ export default function Dashboard() {
             <FileText className="w-3.5 h-3.5" />
             <span>Rename</span>
           </button>
+          {contextMenu.isFolder && user?.role === 'ADMIN' && (
+            <button 
+              onClick={() => {
+                setPermissionsItem(contextMenu.item);
+                setEditVisibility(contextMenu.item.visibility || 'PUBLIC');
+                setEditPassword('');
+                setEditAllowUpload(!!contextMenu.item.allowUpload);
+                setPermissionsModalOpen(true);
+              }}
+              className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-white/5 transition-all text-left"
+            >
+              <SettingsIcon className="w-3.5 h-3.5" />
+              <span>Permissions</span>
+            </button>
+          )}
           <div className="h-[1px] bg-white/5 my-1"></div>
           <button 
             onClick={() => handleDeleteItem(contextMenu.item, contextMenu.isFolder)}

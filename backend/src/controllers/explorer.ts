@@ -7,11 +7,16 @@ export async function listItems(req: AuthenticatedRequest, res: Response) {
   try {
     const folderId = (req.query.folderId as string) || null;
 
+    const visibilityFilter = req.user?.role === 'ADMIN'
+      ? undefined
+      : { not: 'PRIVATE' };
+
     // Fetch folders not in trash
     const folders = await prisma.folder.findMany({
       where: {
         parentFolderId: folderId,
-        trashItems: { none: {} }
+        trashItems: { none: {} },
+        visibility: visibilityFilter
       },
       orderBy: { name: 'asc' }
     });
@@ -27,18 +32,20 @@ export async function listItems(req: AuthenticatedRequest, res: Response) {
 
     // Resolve breadcrumbs
     const breadcrumbs = [];
+    let currentFolder = null;
     if (folderId) {
-      let currentFolder = await prisma.folder.findUnique({
+      currentFolder = await prisma.folder.findUnique({
         where: { id: folderId }
       });
-      while (currentFolder) {
-        breadcrumbs.unshift({ id: currentFolder.id, name: currentFolder.name });
-        if (currentFolder.parentFolderId) {
-          currentFolder = await prisma.folder.findUnique({
-            where: { id: currentFolder.parentFolderId }
+      let tempFolder = currentFolder;
+      while (tempFolder) {
+        breadcrumbs.unshift({ id: tempFolder.id, name: tempFolder.name });
+        if (tempFolder.parentFolderId) {
+          tempFolder = await prisma.folder.findUnique({
+            where: { id: tempFolder.parentFolderId }
           });
         } else {
-          currentFolder = null;
+          tempFolder = null;
         }
       }
     }
@@ -47,6 +54,7 @@ export async function listItems(req: AuthenticatedRequest, res: Response) {
     return res.json({
       folderId,
       breadcrumbs,
+      currentFolder,
       folders,
       files
     });
