@@ -8,11 +8,22 @@ import prisma from '../services/db';
 import { StorageService } from '../services/storage';
 import { logActivity } from '../middleware/logger';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { checkFolderAccess } from '../middleware/authorize';
+
+// Sanitize filename to avoid injection and path traversal
+function sanitizeFilename(filename: string): string {
+  const base = path.basename(filename);
+  return base.replace(/[^a-zA-Z0-9_.-]/g, '_');
+}
 
 // Helper to check if file extension is allowed
 async function isExtensionAllowed(filename: string): Promise<boolean> {
   const ext = path.extname(filename).toLowerCase().replace('.', '');
   
+  // Hardcoded script/executable blocks
+  const hardcodedBlocked = ['exe', 'bat', 'cmd', 'ps1', 'sh'];
+  if (hardcodedBlocked.includes(ext)) return false;
+
   // Fetch settings from Database
   const allowedSetting = await prisma.setting.findUnique({ where: { key: 'allowed_extensions' } });
   const blockedSetting = await prisma.setting.findUnique({ where: { key: 'blocked_extensions' } });
@@ -43,16 +54,24 @@ export async function uploadFiles(req: AuthenticatedRequest, res: Response) {
     const storageAdapter = StorageService.getAdapter();
     const createdFiles = [];
 
+    const maxSetting = await prisma.setting.findUnique({ where: { key: 'max_upload_size' } });
+    const maxSizeBytes = maxSetting ? BigInt(maxSetting.value) : BigInt(10737418240); // 10 GB
+
     for (const file of files) {
       const allowed = await isExtensionAllowed(file.originalname);
       if (!allowed) {
-        // Delete uploaded file chunk
         await fs.promises.unlink(file.path).catch(() => {});
         return res.status(400).json({ error: `File type for "${file.originalname}" is blocked.` });
       }
 
+      if (BigInt(file.size) > maxSizeBytes) {
+        await fs.promises.unlink(file.path).catch(() => {});
+        return res.status(400).json({ error: `File "${file.originalname}" size exceeds configured limit.` });
+      }
+
       const fileId = uuidv4();
-      const mimeType = mime.lookup(file.originalname) || 'application/octet-stream';
+      const sanitizedName = sanitizeFilename(file.originalname);
+      const mimeType = mime.lookup(sanitizedName) || 'application/octet-stream';
       
       // Move file to Storage provider
       await storageAdapter.saveFile(fileId, file.path);
@@ -61,7 +80,7 @@ export async function uploadFiles(req: AuthenticatedRequest, res: Response) {
         data: {
           id: fileId,
           uuidName: fileId,
-          originalName: file.originalname,
+          originalName: sanitizedName,
           mimeType,
           size: BigInt(file.size),
           folderId: folderId || null
@@ -94,7 +113,8 @@ export async function uploadChunk(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json({ error: 'No chunk file provided' });
     }
 
-    const allowed = await isExtensionAllowed(fileName);
+    const sanitizedName = sanitizeFilename(fileName);
+    const allowed = await isExtensionAllowed(sanitizedName);
     if (!allowed) {
       await fs.promises.unlink(file.path).catch(() => {});
       return res.status(400).json({ error: `File type for "${fileName}" is blocked.` });
@@ -117,10 +137,18 @@ export async function uploadChunk(req: AuthenticatedRequest, res: Response) {
 
     // If it's the last chunk, move from temp to storage provider
     if (currentIdx === total - 1) {
+      const maxSetting = await prisma.setting.findUnique({ where: { key: 'max_upload_size' } });
+      const maxSizeBytes = maxSetting ? BigInt(maxSetting.value) : BigInt(10737418240); // 10 GB
+
+      const stats = await fs.promises.stat(tempFilePath);
+      if (BigInt(stats.size) > maxSizeBytes) {
+        await fs.promises.unlink(tempFilePath).catch(() => {});
+        return res.status(400).json({ error: `File "${fileName}" size exceeds configured limit.` });
+      }
+
       const fileId = uuidv4();
       const storageAdapter = StorageService.getAdapter();
-      const stats = await fs.promises.stat(tempFilePath);
-      const mimeType = mime.lookup(fileName) || 'application/octet-stream';
+      const mimeType = mime.lookup(sanitizedName) || 'application/octet-stream';
 
       await storageAdapter.saveFile(fileId, tempFilePath);
 
@@ -128,14 +156,14 @@ export async function uploadChunk(req: AuthenticatedRequest, res: Response) {
         data: {
           id: fileId,
           uuidName: fileId,
-          originalName: fileName,
+          originalName: sanitizedName,
           mimeType,
           size: BigInt(stats.size),
           folderId: folderId || null
         }
       });
 
-      await logActivity('Upload Chunk Complete', `Uploaded large file "${fileName}" (Size: ${stats.size} bytes)`, req);
+      await logActivity('Upload Chunk Complete', `Uploaded large file "${sanitizedName}" (Size: ${stats.size} bytes)`, req);
 
       return res.json({
         success: true,
@@ -235,6 +263,15 @@ export async function streamFile(req: Request, res: Response, asAttachment = fal
 
     if (!file || file.trashItems.length > 0) {
       return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Verify folder read permissions
+    const access = await checkFolderAccess(file.folderId, 'read', req as any);
+    if (!access.authorized) {
+      if (access.reason === 'Password verification required') {
+        return res.status(401).json({ error: 'Password verification required', folderId: file.folderId });
+      }
+      return res.status(403).json({ error: access.reason || 'Access denied' });
     }
 
     const storageAdapter = StorageService.getAdapter();

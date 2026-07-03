@@ -173,13 +173,13 @@ async function fetchShareContent(share: any, subFolderId: string | null) {
     let isValidChild = false;
     let checkId: string | null = subFolderId;
     while (checkId) {
-      const folder = await prisma.folder.findUnique({ where: { id: checkId } });
-      if (!folder) break;
-      if (folder.id === share.folderId) {
+      const checkFolder: any = await prisma.folder.findUnique({ where: { id: checkId } });
+      if (!checkFolder) break;
+      if (checkFolder.id === share.folderId) {
         isValidChild = true;
         break;
       }
-      checkId = folder.parentFolderId;
+      checkId = checkFolder.parentFolderId;
     }
     if (!isValidChild) {
       throw new Error('Access denied: folder is not in share path');
