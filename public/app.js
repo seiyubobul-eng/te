@@ -21,7 +21,6 @@ const elements = {
     clearSearchBtn: document.getElementById('clear-search-btn'),
     viewGridBtn: document.getElementById('view-grid-btn'),
     viewListBtn: document.getElementById('view-list-btn'),
-    downloadZipBtn: document.getElementById('download-zip-btn'),
     newFolderBtn: document.getElementById('new-folder-btn'),
     uploadBtn: document.getElementById('upload-btn'),
     dropzone: document.getElementById('dropzone'),
@@ -116,13 +115,6 @@ function initEventListeners() {
         elements.clearSearchBtn.style.display = 'none';
         elements.searchInput.focus();
         renderItems();
-    });
-
-    // Folder Compression Download (ZIP)
-    elements.downloadZipBtn.addEventListener('click', () => {
-        const url = `/api/download-folder?path=${encodeURIComponent(state.currentPath)}`;
-        showToast('Compressing folder, your download will start shortly...', 'success');
-        window.location.href = url;
     });
 
     // Modals: Folder Creation

@@ -1,13 +1,16 @@
 import { StorageAdapter } from './index';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { Readable } from 'stream';
 
 export class LocalStorageAdapter implements StorageAdapter {
   private storageRoot: string;
 
   constructor() {
-    this.storageRoot = path.resolve(process.env.STORAGE_PATH || '../storage');
+    this.storageRoot = process.env.STORAGE_PATH 
+      ? path.resolve(process.env.STORAGE_PATH) 
+      : path.join(os.tmpdir(), 'node-x', 'storage');
     if (!fs.existsSync(this.storageRoot)) {
       fs.mkdirSync(this.storageRoot, { recursive: true });
     }

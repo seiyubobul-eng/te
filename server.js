@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const multer = require('multer');
 const archiver = require('archiver');
 const mime = require('mime-types');
@@ -9,11 +10,36 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Setup directories
-const sharedRoot = path.resolve(__dirname, 'shared');
+const bundleSharedRoot = path.resolve(__dirname, 'shared');
+const sharedRoot = path.join(os.tmpdir(), 'node-x', 'shared');
 const publicRoot = path.resolve(__dirname, 'public');
+
+// Recursive copy helper to seed writable storage
+function copyDirSync(src, dest) {
+    fs.mkdirSync(dest, { recursive: true });
+    if (!fs.existsSync(src)) return;
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+    for (let entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+        if (entry.isDirectory()) {
+            copyDirSync(srcPath, destPath);
+        } else {
+            fs.copyFileSync(srcPath, destPath);
+        }
+    }
+}
 
 if (!fs.existsSync(sharedRoot)) {
     fs.mkdirSync(sharedRoot, { recursive: true });
+    if (fs.existsSync(bundleSharedRoot) && bundleSharedRoot !== sharedRoot) {
+        try {
+            copyDirSync(bundleSharedRoot, sharedRoot);
+            console.log('Seeded writable shared directory from bundle');
+        } catch (err) {
+            console.error('Error seeding shared directory:', err);
+        }
+    }
 }
 
 // Helper to validate and get safe path within sharedRoot
@@ -166,41 +192,6 @@ app.get('/api/view', (req, res) => {
         }
 
         fs.createReadStream(targetPath).pipe(res);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-// API: Download directory as ZIP
-app.get('/api/download-folder', (req, res) => {
-    try {
-        const relativePath = req.query.path || '';
-        const targetPath = getSafePath(relativePath);
-
-        if (!fs.existsSync(targetPath)) {
-            return res.status(404).json({ error: 'Directory not found' });
-        }
-
-        const stat = fs.statSync(targetPath);
-        if (!stat.isDirectory()) {
-            return res.status(400).json({ error: 'Path is not a directory' });
-        }
-
-        const folderName = relativePath ? path.basename(targetPath) : 'shared_root';
-        res.attachment(`${folderName}.zip`);
-
-        const archive = archiver('zip', {
-            zlib: { level: 9 } // Maximum compression level
-        });
-
-        archive.on('error', (err) => {
-            res.status(500).send({ error: err.message });
-        });
-
-        archive.pipe(res);
-        archive.directory(targetPath, false);
-        archive.finalize();
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
